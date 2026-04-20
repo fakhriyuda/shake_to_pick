@@ -216,7 +216,7 @@ class _MainScreenState extends State<MainScreen> {
       _shakeIntensityY = 0.0;
     });
     _listenToSensors();
-  }
+  } 
 
   @override
   void dispose() {
