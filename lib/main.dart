@@ -52,7 +52,7 @@ class _MainScreenState extends State<MainScreen> {
   String? _resultText;
   
   double _shakeIntensityY = 0.0;
-  StreamSubscription<UserAccelerometerEvent>? _accelSubscription;
+  StreamSubscription<AccelerometerEvent>? _accelSubscription;
   
   late ConfettiController _confettiController;
   
@@ -137,20 +137,27 @@ class _MainScreenState extends State<MainScreen> {
     _listenToSensors();
   }
   
+  double _lastY = 0.0;
+  String _debugText = "Waiting for sensors...";
+
   void _listenToSensors() {
-    // using userAccelerometer to ignore gravity
-    _accelSubscription = userAccelerometerEventStream(
-      samplingPeriod: const Duration(milliseconds: 50), // Responsive update speed
-    ).listen((UserAccelerometerEvent event) {
+    // using raw accelerometer and computing delta to ignore gravity
+    _accelSubscription = accelerometerEventStream(
+      samplingPeriod: const Duration(milliseconds: 50),
+    ).listen((AccelerometerEvent event) {
       if (_isTriggered) return;
 
-      final double intensity = event.y.abs();
+      final double deltaY = event.y - _lastY;
+      _lastY = event.y;
+      
+      final double intensity = deltaY.abs();
       
       setState(() {
-        _shakeIntensityY = event.y;
+        _shakeIntensityY = deltaY;
+        _debugText = "Raw Y: ${event.y.toStringAsFixed(2)}\nDelta Y: ${deltaY.toStringAsFixed(2)}\nIntensity: ${intensity.toStringAsFixed(2)}";
       });
 
-      if (intensity > 3.0) {
+      if (intensity > 5.0) {
         if (!_isShaking) {
           _isShaking = true;
           try {
@@ -158,7 +165,7 @@ class _MainScreenState extends State<MainScreen> {
           } catch (_) {}
         }
       } else {
-        if (_isShaking && intensity < 1.5) {
+        if (_isShaking && intensity < 2.0) {
           _isShaking = false;
           try {
             _shakeAudioPlayer.pause();
@@ -167,12 +174,13 @@ class _MainScreenState extends State<MainScreen> {
       }
 
       // Threshold to trigger the result
-      if (intensity > 15.0) {
+      if (intensity > 20.0) {
         _triggerResult();
       }
     }, onError: (dynamic error) {
-      // Device might not have accelerometer
-      print("Error listening to sensors: $error");
+      setState(() {
+        _debugText = "Error: $error";
+      });
     });
   }
 
@@ -363,7 +371,13 @@ class _MainScreenState extends State<MainScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Text('SHAKE ME', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white24, letterSpacing: 2.0)),
-                const SizedBox(height: 60),
+                const SizedBox(height: 10),
+                Text(
+                  _debugText,
+                  style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 30),
                 // Stage 2 Visuals
                 Transform.translate(
                   offset: Offset(0, _shakeIntensityY * -20), // Move opposite to Y accel for natural feel
